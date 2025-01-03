@@ -3,6 +3,7 @@ package fr.openmc.core.features.city;
 import fr.openmc.core.features.city.events.ChunkClaimedEvent;
 import fr.openmc.core.features.city.events.CityCreationEvent;
 import fr.openmc.core.features.city.events.CityDeleteEvent;
+import fr.openmc.core.features.city.milestones.MilestoneManager;
 import fr.openmc.core.utils.BlockVector2;
 import fr.openmc.core.OMCPlugin;
 import fr.openmc.core.commands.CommandsManager;
@@ -15,10 +16,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 
 import javax.annotation.Nullable;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -66,6 +64,8 @@ public class CityManager implements Listener {
                 new ProtectionListener(),
                 new BankMenuListener()
         );
+
+        MilestoneManager.init();
     }
 
     @EventHandler
@@ -78,11 +78,21 @@ public class CityManager implements Listener {
     }
 
     public static void init_db(Connection conn) throws SQLException {
-        conn.prepareStatement("CREATE TABLE IF NOT EXISTS city (uuid VARCHAR(8) NOT NULL PRIMARY KEY, owner VARCHAR(36) NOT NULL, name VARCHAR(32), balance DOUBLE DEFAULT 0);").executeUpdate();
-        conn.prepareStatement("CREATE TABLE IF NOT EXISTS city_members (city_uuid VARCHAR(8) NOT NULL, player VARCHAR(36) NOT NULL PRIMARY KEY);").executeUpdate();
-        conn.prepareStatement("CREATE TABLE IF NOT EXISTS city_permissions (city_uuid VARCHAR(8) NOT NULL, player VARCHAR(36) NOT NULL, permission VARCHAR(255) NOT NULL);").executeUpdate();
-        conn.prepareStatement("CREATE TABLE IF NOT EXISTS city_banks (city_uuid VARCHAR(8) NOT NULL, page TINYINT UNSIGNED NOT NULL, content LONGBLOB);").executeUpdate();
-        conn.prepareStatement("CREATE TABLE IF NOT EXISTS city_regions (city_uuid VARCHAR(8) NOT NULL, x MEDIUMINT NOT NULL, z MEDIUMINT NOT NULL);").executeUpdate(); // Faut esperer qu'aucun clodo n'ira à 134.217.712 blocks du spawn
+        String[] queries = {
+                "CREATE TABLE IF NOT EXISTS city (uuid VARCHAR(8) NOT NULL PRIMARY KEY, owner VARCHAR(36) NOT NULL, name VARCHAR(32), balance DOUBLE DEFAULT 0)",
+                "CREATE TABLE IF NOT EXISTS city_members (city_uuid VARCHAR(8) NOT NULL, player VARCHAR(36) NOT NULL PRIMARY KEY)",
+                "CREATE TABLE IF NOT EXISTS city_permissions (city_uuid VARCHAR(8) NOT NULL, player VARCHAR(36) NOT NULL, permission VARCHAR(255) NOT NULL)",
+                "CREATE TABLE IF NOT EXISTS city_banks (city_uuid VARCHAR(8) NOT NULL, page TINYINT UNSIGNED NOT NULL, content LONGBLOB)",
+                "CREATE TABLE IF NOT EXISTS city_regions (city_uuid VARCHAR(8) NOT NULL, x MEDIUMINT NOT NULL, z MEDIUMINT NOT NULL)",
+                "CREATE TABLE IF NOT EXISTS milestone_progress (city_uuid VARCHAR(8), milestone_name VARCHAR(255), current_progress INT, current_level INT, PRIMARY KEY (city_id, milestone_name))"
+        };
+
+        Statement stmt = conn.createStatement();
+        for (String query : queries) {
+            stmt.addBatch(query);
+        }
+        stmt.executeBatch();
+        stmt.close();
     }
 
     public static boolean isChunkClaimed(int x, int z) {
